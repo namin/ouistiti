@@ -342,6 +342,7 @@ function validate(dataset)
    -- print confusion matrix
    print(confusion)
    testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+   local totalValid = confusion.totalValid
    confusion:zero()
 
    -- averaged param use?
@@ -349,6 +350,8 @@ function validate(dataset)
       -- restore parameters
       parameters:copy(cachedparams)
    end
+
+   return totalValid
 end
 
 function predict(input)
@@ -371,10 +374,12 @@ end
 --
 do
    local i = 1
-   while true do
+   local prevTotalValid = 0
+   local totalValid = 0
+   while prevTotalValid <= totalValid do
       -- train/test
       train(trainData)
-      validate(validationData)
+      prevTotalValid, totalValid = totalValid, validate(validationData)
       output(testData, 'test' .. i .. '.csv')
       i = i + 1
 
