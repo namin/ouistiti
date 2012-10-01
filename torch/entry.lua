@@ -39,6 +39,12 @@ function entry.loadSet(luafile, nEntries, inputSize, outputSize, inputOp, output
       return example
    end
 
+   if (outputSize == 0) then
+      indexop = function(self, index)
+         return inputOp(tensor[index])
+      end
+   end
+
    setmetatable(dataset, {__index = indexop})
 
    return dataset
