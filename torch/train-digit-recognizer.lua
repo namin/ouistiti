@@ -20,7 +20,8 @@ require 'nn'
 require 'nnx'
 require 'optim'
 require 'image'
-require 'dataset'
+require 'entry'
+require 'kaggle-digit-recognizer'
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -60,10 +61,10 @@ print('<torch> set nb of threads to ' .. torch.getnumthreads())
 -- define model to train
 -- on the 10-class classification problem
 --
-classes = {'1','2','3','4','5','6','7','8','9','10'}
+classes = {'0', '1','2','3','4','5','6','7','8','9'}
 
 -- geometry: width and height of input images
-geometry = {32,32}
+geometry = {28,28}
 
 if opt.network == '' then
    -- define model to train
@@ -73,6 +74,7 @@ if opt.network == '' then
       ------------------------------------------------------------
       -- convolutional network 
       ------------------------------------------------------------
+      model:add(nn.Reshape(32, 32))
       -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
       model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
       model:add(nn.SpatialConvolution(1, 16, 5, 5))
@@ -94,18 +96,18 @@ if opt.network == '' then
       ------------------------------------------------------------
       -- regular 2-layer MLP
       ------------------------------------------------------------
-      model:add(nn.Reshape(1024))
-      model:add(nn.Linear(1024, 2048))
+      model:add(nn.Reshape(kaggle.inputSize))
+      model:add(nn.Linear(kaggle.inputSize, 2*kaggle.inputSize))
       model:add(nn.Tanh())
-      model:add(nn.Linear(2048,#classes))
+      model:add(nn.Linear(2*kaggle.inputSize,#classes))
       ------------------------------------------------------------
 
    elseif opt.model == 'linear' then
       ------------------------------------------------------------
       -- simple linear model: logistic regression
       ------------------------------------------------------------
-      model:add(nn.Reshape(1024))
-      model:add(nn.Linear(1024,#classes))
+      model:add(nn.Reshape(kaggle.inputSize))
+      model:add(nn.Linear(kaggle.inputSize,#classes))
       ------------------------------------------------------------
 
    else
@@ -137,21 +139,20 @@ criterion = nn.ClassNLLCriterion()
 -- get/create dataset
 --
 if opt.full then
-   nbTrainingPatches = 60000
-   nbTestingPatches = 10000
+   nbTrainingPatches = kaggle.trainSize
+   nbTestingPatches = kaggle.testSize
 else
    nbTrainingPatches = 2000
    nbTestingPatches = 1000
-   print('<warning> only using 2000 samples to train quickly (use flag -full to use 60000 samples)')
+   print('<warning> only using 2000 samples to train quickly (use flag -full to use all samples)')
 end
 
 -- create training set and normalize
-trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
-mean, std = trainData:normalizeGlobal()
+trainData = kaggle.loadTrainSet(nbTrainingPatches)
+trainData, validationData = entry.split(trainData, 0.1)
 
 -- create test set and normalize
-testData = mnist.loadTestSet(nbTestingPatches, geometry)
-testData:normalizeGlobal(mean, std)
+testData = kaggle.loadTestSet(nbTestingPatches)
 
 ----------------------------------------------------------------------
 -- define training and testing functions
@@ -163,33 +164,6 @@ confusion = optim.ConfusionMatrix(classes)
 -- log results to files
 trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
-
--- display function
-function display(input)
-   iter = iter or 0
-   require 'image'
-   win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if iter%10 == 0 then
-      if opt.model == 'convnet' then
-         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                                min=-1, max=1,
-                                win=win_w1, legend='stage 1: weights', padding=1}
-         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                                min=-1, max=1,
-                                win=win_w2, legend='stage 2: weights', padding=1}
-      elseif opt.model == 'mlp' then
-         local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-         win_w1 = image.display{image=W1, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w1, legend='W1 weights'}
-         local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-         win_w2 = image.display{image=W2, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w2, legend='W2 weights'}
-      end
-   end
-   iter = iter + 1
-end
 
 -- training function
 function train(dataset)
@@ -303,7 +277,7 @@ function train(dataset)
 
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = opt.learningRate,
-                             t0 = nbTrainingPatches * (opt.t0-1)}
+                             t0 = dataset:size() * (opt.t0-1)}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
@@ -334,8 +308,8 @@ function train(dataset)
    epoch = epoch + 1
 end
 
--- test function
-function test(dataset)
+-- validate function
+function validate(dataset)
    -- local vars
    local time = sys.clock()
 
@@ -378,19 +352,39 @@ function test(dataset)
    end
 end
 
+function predict(input)
+   local _, index = model:forward(input):max(1)
+   return index[1]-1
+end
+
+function output(dataset, filename)
+   local f = io.open(filename, 'w')
+   for t = 1,dataset:size() do
+      -- disp progress
+      xlua.progress(t, dataset:size())
+      f:write(predict(dataset[t]) .. "\n")
+   end
+   f:close()
+end
+
 ----------------------------------------------------------------------
 -- and train!
 --
-while true do
-   -- train/test
-   train(trainData)
-   test(testData)
+do
+   local i = 1
+   while true do
+      -- train/test
+      train(trainData)
+      validate(validationData)
+      output(testData, 'test' .. i .. '.csv')
+      i = i + 1
 
-   -- plot errors
-   if opt.plot then
-      trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-      testLogger:style{['% mean class accuracy (test set)'] = '-'}
-      trainLogger:plot()
-      testLogger:plot()
+      -- plot errors
+      if opt.plot then
+         trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+         testLogger:style{['% mean class accuracy (test set)'] = '-'}
+         trainLogger:plot()
+         testLogger:plot()
+      end
    end
 end

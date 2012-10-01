@@ -13,6 +13,7 @@ function entry.loadSet(luafile, nEntries, inputSize, outputSize, inputOp, output
 
    function Entry(e)
       count = count + 1
+      if (count > nEntries) then return end
       xlua.progress(count, nEntries)
       for i=1,#e do
          tensor[count][i] = e[i]
@@ -70,3 +71,31 @@ function entry.outputClass(nClasses, toClassIndex)
    return trans
 end
 
+function entry.split(dataset, r)
+   local dataset1 = {}
+   local indices1 = {}
+   local dataset2 = {}
+   local indices2 = {}
+   for i=1,dataset:size() do
+      if (torch.rand(1)[1] < r) then
+         table.insert(indices2, i)
+      else
+         table.insert(indices1, i)
+      end
+   end
+   dataset1.indices = indices1
+   dataset2.indices = indices2
+   function dataset1:size()
+      return #dataset1.indices
+   end
+   function dataset2:size()
+      return #dataset2.indices
+   end
+
+   local indexop = function(self, index)
+      return dataset[self.indices[index]]
+   end
+   setmetatable(dataset1, {__index = indexop})
+   setmetatable(dataset2, {__index = indexop})
+   return dataset1, dataset2
+end
