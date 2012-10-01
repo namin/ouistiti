@@ -23,11 +23,33 @@ function entry.loadSet(luafile, nEntries, inputSize, outputSize, inputOp, output
 
    function dataset:normalizeInput(mean_, std_)
       local data = tensor:narrow(2, outputSize+1, dim-outputSize)
+      local std = std_ or torch.std(data, 1, true)
+      local mean = mean_ or torch.mean(data, 1)
+      for i=1,dim-1 do
+         tensor:select(2, i):add(-mean[1][i])
+         if std[1][i] > 0 then
+            tensor:select(2, i):mul(1/std[1][i])
+         end
+      end
+      return mean, std
+   end
+
+   local normalizeGlobal = function(data, mean_, std_)
       local std = std_ or data:std()
       local mean = mean_ or data:mean()
       data:add(-mean)
       data:mul(1/std)
       return mean, std
+   end
+
+   function dataset:normalizeInputGlobal(mean_, std_)
+      local data = tensor:narrow(2, outputSize+1, dim-outputSize)
+      return normalizeGlobal(data, mean_, std_)
+   end
+
+   function dataset:normalizeOutputGlobal(mean_, std_)
+      local data = tensor:narrow(2, 1, outputSize)
+      return normalizeGlobal(data, mean_, std_)
    end
 
    function dataset:size() return nEntries end

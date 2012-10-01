@@ -147,8 +147,8 @@ else
 end
 
 -- create training set and normalize
-trainData = kaggle.loadTrainSet(nbTrainingPatches)
-trainData, validationData = entry.split(trainData, 0.1)
+labelledData = kaggle.loadTrainSet(nbTrainingPatches)
+trainData, validationData = entry.split(labelledData, 0.1)
 
 -- create test set and normalize
 testData = kaggle.loadTestSet(nbTestingPatches)

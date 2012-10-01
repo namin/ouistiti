@@ -17,13 +17,13 @@ kaggle.outputOp = entry.outputClass(10, function(x) return x:squeeze()+1 end)
 function kaggle.loadTrainSet(size)
    local trainSize = size or kaggle.trainSize
    local dataset = entry.loadSet(kaggle.trainFile, trainSize, kaggle.inputSize, kaggle.outputSize, kaggle.inputOp, kaggle.outputOp)
-   kaggle.mean, kaggle.std = dataset.normalizeInput()
+   kaggle.mean, kaggle.std = dataset:normalizeInputGlobal()
    return dataset
 end
 
 function kaggle.loadTestSet(size)
    local testSize = size or kaggle.testSize
    local dataset = entry.loadSet(kaggle.testFile, testSize, kaggle.inputSize, 0, kaggle.inputOp)
-   dataset.normalizeInput(kaggle.mean, kaggle.std)
+   dataset:normalizeInputGlobal(kaggle.mean, kaggle.std)
    return dataset
 end
