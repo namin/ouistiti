@@ -20,11 +20,12 @@ cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-full', false, 'use full dataset (60,000 samples)')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
 cmd:option('-threads', 1, 'nb of threads')
-cmd:option('-nHidden', 30, 'size of hidden layer')
-cmd:option('-learningRate', 0.01, 'learning rate')
-cmd:option('-learningRateDecay', 0.001, 'learning rate decay')
-cmd:option('-maxIteration', 100, 'max iterations')
+cmd:option('-nHidden', 50, 'size of hidden layer')
+cmd:option('-learningRate', 0.0001, 'learning rate')
+cmd:option('-learningRateDecay', 0.00001, 'learning rate decay')
+cmd:option('-maxIteration', 1, 'max iterations')
 cmd:option('-shuffleIndices', false, 'shuffle indices')
+cmd:option('-fluctuation', 0.1, 'tolerated fluctuation')
 cmd:text()
 opt = cmd:parse(arg)
 
@@ -41,9 +42,9 @@ print('<torch> set nb of threads to ' .. torch.getnumthreads())
 if opt.network == '' then
    model = nn.Sequential()
    model:add(nn.Linear(kaggle.inputSize, opt.nHidden))
-   model:add(nn.Tanh())
+   model:add(nn.Sigmoid())
    model:add(nn.Linear(opt.nHidden, opt.nHidden))
-   model:add(nn.Tanh())
+   model:add(nn.Sigmoid())
    model:add(nn.Linear(opt.nHidden,kaggle.outputSize))
 else
    print('<trainer> reloading previously trained network')
@@ -125,12 +126,19 @@ do
    local i = 1
    local prevValidErr = 100
    local validErr = 100
-   while prevValidErr >= validErr do
+   local minErr = 100
+   local mini = i
+   while prevValidErr >= validErr or ((validErr-minErr)/minErr)<opt.fluctuation do
       -- train/test
       train(trainData)
       prevValidErr, validErr = validErr, validate(validationData)
+      if (validErr < minErr) then
+         minErr = validErr
+         mini = i
+      end
       print(i .. ". validation error " .. validErr)
       output(testData, kaggle.outPrefix .. i .. '.csv')
       i = i + 1
    end
+   print(mini .. ". best validation error " .. minErr)
 end
