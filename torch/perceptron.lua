@@ -9,18 +9,12 @@ function rand_line()
    local p2 = rand_point()
    local a = (p2[2] - p1[2])/(p2[1] - p1[1])
    local b = p1[2] - a*p1[1]
-   local l = torch.DoubleTensor(3)
-   l[1] = b
-   l[2] = a
-   l[3] = -1
+   local l = torch.DoubleTensor({b, a, -1})
    return l
 end
 
 function add_bias(p)
-   local x = torch.DoubleTensor(3)
-   x[1] = 1
-   x[2] = p[1]
-   x[3] = p[2]
+   local x = torch.DoubleTensor({1, p[1], p[2]})
    return x
 end
 
@@ -46,14 +40,6 @@ function line_samples(l, N)
    return s
 end
 
-function t(a)
-   local x = torch.DoubleTensor(table.getn(a))
-   for i=1,table.getn(a) do
-      x[i] = a[i]
-   end
-   return x
-end
-
 function line_plot(l, w, s)
    local x = torch.linspace(-1, 1)
    local tpx = {}
@@ -69,10 +55,10 @@ function line_plot(l, w, s)
          table.insert(tny, s[i][1][2])
       end
    end
-   local px = t(tpx)
-   local py = t(tpy)
-   local nx = t(tnx)
-   local ny = t(tny)
+   local px = torch.DoubleTensor(tpx)
+   local py = torch.DoubleTensor(tpy)
+   local nx = torch.DoubleTensor(tnx)
+   local ny = torch.DoubleTensor(tny)
    gnuplot.plot({nx,ny},
                 {px, py},
                 {x,(x*l[2]+l[1])/(-l[3]), '-'},
