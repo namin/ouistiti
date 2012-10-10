@@ -3,7 +3,7 @@ require 'nn'
 require 'Sign'
 require 'SignCriterion'
 
-cmd = torch.CmdLine()
+cmd = cmd or torch.CmdLine()
 cmd:text()
 cmd:text('Perceptron Learning Algorithm')
 cmd:text()
@@ -260,4 +260,4 @@ end
 function main()
    experiment(opt.T, opt.N)
 end
-if arg then main() end
+if arg and arg[0] == 'perceptron.lua' then main() end
