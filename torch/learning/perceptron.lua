@@ -33,7 +33,12 @@ end
 
 --- Returns the input point with an extra bias dimension set.
 function add_bias(p)
-   local x = torch.DoubleTensor({1, p[1], p[2]})
+   local n=p:size()[1]
+   local x = torch.DoubleTensor(n+1)
+   x[1] = 1
+   for i=1,n do
+      x[i+1] = p[i]
+   end
    return x
 end
 
